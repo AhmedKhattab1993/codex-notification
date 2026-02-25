@@ -21,26 +21,19 @@ fi
 
 mkdir -p "${BIN_DIR}" "${VOICE_DIR}"
 
-if command -v python3.11 >/dev/null 2>&1; then
-  PY311="$(command -v python3.11)"
-else
-  if ! command -v uv >/dev/null 2>&1; then
-    echo "Missing dependency: uv (required to install Python 3.11)" >&2
-    exit 1
-  fi
-  uv python install 3.11
-  PY311="$(uv python find 3.11)"
-  if [[ -z "${PY311}" ]]; then
-    echo "Unable to locate Python 3.11 after uv installation" >&2
-    exit 1
-  fi
+if ! command -v uv >/dev/null 2>&1; then
+  echo "Missing dependency: uv (required to install Python 3.11 and Coqui TTS)" >&2
+  exit 1
 fi
 
-rm -rf "${VENV_DIR}"
-"${PY311}" -m venv "${VENV_DIR}"
+if [[ ! -x "${VENV_DIR}/bin/python" || ! -x "${VENV_DIR}/bin/tts" ]]; then
+  uv python install 3.11
+  rm -rf "${VENV_DIR}"
+  uv venv --python 3.11 "${VENV_DIR}"
+fi
 
-"${VENV_DIR}/bin/python" -m pip install --upgrade pip
-"${VENV_DIR}/bin/python" -m pip install --upgrade TTS
+uv pip install --python "${VENV_DIR}/bin/python" --upgrade torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+uv pip install --python "${VENV_DIR}/bin/python" --upgrade "coqui-tts[codec]" "transformers>=4.57,<5"
 
 cp "${SOURCE_SCRIPT}" "${TARGET_SCRIPT}"
 chmod 755 "${TARGET_SCRIPT}"
@@ -62,19 +55,12 @@ NOTIFY_LINE="notify=[\"${NOTIFY_CMD}\"]"
 TMP_FILE="$(mktemp "${CONFIG_FILE}.tmp.XXXXXX")"
 
 awk -v notify_line="${NOTIFY_LINE}" '
-BEGIN { replaced=0 }
-/^[[:space:]]*notify[[:space:]]*=/ {
-  if (replaced == 0) {
-    print notify_line
-    replaced=1
-  }
-  next
+BEGIN {
+  print notify_line
 }
-{ print }
-END {
-  if (replaced == 0) {
-    print notify_line
-  }
+/^[[:space:]]*notify[[:space:]]*=/ { next }
+{
+  print
 }
 ' "${CONFIG_FILE}" > "${TMP_FILE}"
 

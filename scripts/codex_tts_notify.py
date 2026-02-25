@@ -91,11 +91,14 @@ def extract_text(payload: Any) -> str:
         raise RuntimeError("Payload string is empty")
 
     if isinstance(payload, dict):
-        for key in ("message", "text", "content", "title"):
+        # Primary path for Codex notify payloads.
+        for key in ("last-assistant-message", "message", "text", "content", "title"):
             value = payload.get(key)
             if isinstance(value, str) and value.strip():
                 return value.strip()
-        raise RuntimeError("Payload must contain one of: message, text, content, title")
+        raise RuntimeError(
+            "Payload must contain one of: last-assistant-message, message, text, content, title"
+        )
 
     raise RuntimeError("Payload must be a JSON object or string")
 
@@ -190,6 +193,7 @@ def run_worker_mode() -> int:
             if not isinstance(text, str) or not text.strip():
                 raise RuntimeError(f"Invalid queue entry: {entry}")
 
+            log_line("INFO", f"Playing notification {entry.get('id', 'unknown')}")
             play_tts(text)
             log_line("INFO", f"Played notification {entry.get('id', 'unknown')}")
         return 0
