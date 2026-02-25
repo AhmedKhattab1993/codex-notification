@@ -23,12 +23,15 @@ QUEUE_FILE = STATE_DIR / "queue.jsonl"
 QUEUE_LOCK_FILE = STATE_DIR / "queue.lock"
 WORKER_LOCK_FILE = STATE_DIR / "worker.lock"
 LOG_FILE = STATE_DIR / "notifier.log"
-MODEL_NAME = "tts_models/en/ljspeech/tacotron2-DDC"
+MODEL_NAME = os.environ.get("CODEX_TTS_MODEL", "tts_models/en/vctk/vits")
+DEFAULT_SPEAKER_IDX = "p225" if MODEL_NAME == "tts_models/en/vctk/vits" else ""
+SPEAKER_IDX = os.environ.get("CODEX_TTS_SPEAKER_IDX", DEFAULT_SPEAKER_IDX).strip()
+LANGUAGE_IDX = os.environ.get("CODEX_TTS_LANGUAGE_IDX", "").strip()
 MAX_TTS_TEXT_CHARS = 420
 MAX_QUEUE_ITEMS = 200
 MAX_ITEM_AGE_SECONDS = 1800
-TTS_TIMEOUT_SECONDS = 90
-AUDIO_TIMEOUT_SECONDS = 45
+TTS_TIMEOUT_SECONDS = int(os.environ.get("CODEX_TTS_SYNTH_TIMEOUT_SECONDS", "300"))
+AUDIO_TIMEOUT_SECONDS = int(os.environ.get("CODEX_TTS_PLAY_TIMEOUT_SECONDS", "90"))
 LAST_SPOKEN_HASH_FILE = STATE_DIR / "last_spoken_hash.txt"
 
 
@@ -223,16 +226,22 @@ def play_tts(text: str) -> None:
         ) as temp_wav:
             temp_wav_path = temp_wav.name
 
+        synth_cmd = [
+            "tts",
+            "--model_name",
+            MODEL_NAME,
+            "--text",
+            text,
+            "--out_path",
+            temp_wav_path,
+        ]
+        if SPEAKER_IDX:
+            synth_cmd.extend(["--speaker_idx", SPEAKER_IDX])
+        if LANGUAGE_IDX:
+            synth_cmd.extend(["--language_idx", LANGUAGE_IDX])
+
         synth = subprocess.run(
-            [
-                "tts",
-                "--model_name",
-                MODEL_NAME,
-                "--text",
-                text,
-                "--out_path",
-                temp_wav_path,
-            ],
+            synth_cmd,
             check=False,
             capture_output=True,
             text=True,

@@ -14,6 +14,7 @@ Test it:
 
 Notes:
 - Global Codex hook is set in `~/.codex/config.toml` as `notify=["/Users/ahmedkhattab/.codex/bin/codex-tts-notify"]`.
+- Default voice model is `tts_models/en/vctk/vits` with speaker `p225` (override with `CODEX_TTS_MODEL` / `CODEX_TTS_SPEAKER_IDX`).
 - Notifications are appended to a queue at `~/.codex/notify-tts/queue.jsonl`.
 - A detached singleton worker drains the queue in FIFO order.
 - Logs are written to `~/.codex/notify-tts/notifier.log`.

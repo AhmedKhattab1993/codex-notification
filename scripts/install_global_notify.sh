@@ -42,6 +42,8 @@ cat > "${TARGET_WRAPPER}" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 export PATH="$HOME/.codex/voice-notify/venv/bin:$PATH"
+export CODEX_TTS_MODEL="${CODEX_TTS_MODEL:-tts_models/en/vctk/vits}"
+export CODEX_TTS_SPEAKER_IDX="${CODEX_TTS_SPEAKER_IDX:-p225}"
 exec "$HOME/.codex/voice-notify/venv/bin/python" "$HOME/.codex/bin/codex-tts-notify.py" "$@"
 EOF
 chmod 755 "${TARGET_WRAPPER}"
