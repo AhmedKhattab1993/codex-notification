@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -398,9 +399,19 @@ def get_tts_engine() -> Any:
     return _TTS_ENGINE
 
 
-def synthesize_and_play_chunk(text: str) -> None:
+def remove_temp_audio_file(path: str | None) -> None:
+    if not path:
+        return
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception as exc:  # noqa: BLE001
+        log_line("ERROR", f"Failed removing temp audio file {path}: {exc}")
+
+
+def synthesize_chunk_to_wav(text: str) -> str:
     ensure_state_dir()
-    temp_wav_path = None
+    temp_wav_path: str | None = None
     try:
         with tempfile.NamedTemporaryFile(
             suffix=".wav",
@@ -432,7 +443,14 @@ def synthesize_and_play_chunk(text: str) -> None:
 
         if not os.path.exists(temp_wav_path) or os.path.getsize(temp_wav_path) == 0:
             raise RuntimeError("tts produced empty audio output")
+        return temp_wav_path
+    except Exception:
+        remove_temp_audio_file(temp_wav_path)
+        raise
 
+
+def play_wav_file(temp_wav_path: str) -> None:
+    try:
         player = subprocess.run(
             ["afplay", "-r", str(PLAYBACK_RATE), temp_wav_path],
             check=False,
@@ -443,17 +461,58 @@ def synthesize_and_play_chunk(text: str) -> None:
         if player.returncode != 0:
             raise RuntimeError(f"afplay failed: {player.stderr.strip()}")
     finally:
-        if temp_wav_path and os.path.exists(temp_wav_path):
-            os.remove(temp_wav_path)
+        remove_temp_audio_file(temp_wav_path)
 
 
 def play_tts(text: str) -> None:
     chunks = split_text_for_tts(text, MAX_TTS_CHUNK_CHARS)
     log_line("INFO", f"TTS prepared {len(chunks)} chunk(s)")
-    for idx, chunk in enumerate(chunks, start=1):
-        if len(chunks) > 1:
-            log_line("INFO", f"TTS chunk {idx}/{len(chunks)}")
-        synthesize_and_play_chunk(chunk)
+    total_chunks = len(chunks)
+    next_audio_path: str | None = None
+    try:
+        next_audio_path = synthesize_chunk_to_wav(chunks[0])
+        log_line("INFO", f"TTS chunk inferred 1/{total_chunks}")
+
+        for idx in range(total_chunks):
+            current_audio_path = next_audio_path
+            next_audio_path = None
+            if not current_audio_path:
+                raise RuntimeError("Missing synthesized audio chunk")
+
+            if total_chunks > 1:
+                log_line("INFO", f"TTS chunk {idx + 1}/{total_chunks}")
+
+            playback_error: list[Exception] = []
+
+            def _play_current_chunk(path: str) -> None:
+                try:
+                    play_wav_file(path)
+                except Exception as exc:  # noqa: BLE001
+                    playback_error.append(exc)
+
+            playback_thread = threading.Thread(
+                target=_play_current_chunk,
+                args=(current_audio_path,),
+                daemon=True,
+            )
+            playback_thread.start()
+
+            synthesis_error: Exception | None = None
+            if idx + 1 < total_chunks:
+                try:
+                    next_audio_path = synthesize_chunk_to_wav(chunks[idx + 1])
+                    log_line("INFO", f"TTS chunk inferred {idx + 2}/{total_chunks}")
+                except Exception as exc:  # noqa: BLE001
+                    synthesis_error = exc
+
+            playback_thread.join()
+
+            if playback_error:
+                raise playback_error[0]
+            if synthesis_error is not None:
+                raise synthesis_error
+    finally:
+        remove_temp_audio_file(next_audio_path)
 
 
 def spawn_worker() -> None:
