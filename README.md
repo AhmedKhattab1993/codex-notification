@@ -14,8 +14,11 @@ Test it:
 
 Notes:
 - Global Codex hook is set in `~/.codex/config.toml` as `notify=["/Users/ahmedkhattab/.codex/bin/codex-tts-notify"]`.
-- Default voice model is `tts_models/en/vctk/vits` with speaker `p225` (override with `CODEX_TTS_MODEL` / `CODEX_TTS_SPEAKER_IDX`).
+- Default model is local `Chatterbox-Turbo` on `mps`.
 - Notifications are appended to a queue at `~/.codex/notify-tts/queue.jsonl`.
 - A detached singleton worker drains the queue in FIFO order.
 - Logs are written to `~/.codex/notify-tts/notifier.log`.
-- First playback can take several minutes while Coqui downloads/extracts the model; later turns are much faster.
+- Worker stays warm by default for 24 hours to avoid model reload overhead.
+- Polling defaults to `0.2s` for faster pickup (`CODEX_TTS_WORKER_POLL_INTERVAL_SECONDS`).
+- Playback defaults to `1.1x` (`CODEX_TTS_PLAYBACK_RATE`) for shorter listen time without truncation.
+- First playback can take longer while Chatterbox-Turbo downloads model files; later turns are much faster.
