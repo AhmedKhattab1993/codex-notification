@@ -165,6 +165,39 @@ def extract_text(payload: Any) -> str:
     raise RuntimeError("Payload must be a JSON object or string")
 
 
+TTS_SUMMARY_HEADING_RE = re.compile(r"^\s{0,3}##\s+TTS Summary\s*$", re.IGNORECASE)
+MARKDOWN_H2_RE = re.compile(r"^\s{0,3}##\s+\S")
+
+
+def select_text_for_tts(text: str) -> tuple[str, bool]:
+    """Select the voice-focused section when present.
+
+    Returns:
+        (selected_text, used_tts_summary_section)
+    """
+    lines = text.splitlines()
+    summary_start = None
+    for idx, line in enumerate(lines):
+        if TTS_SUMMARY_HEADING_RE.match(line):
+            summary_start = idx + 1
+            break
+
+    if summary_start is None:
+        return text, False
+
+    summary_end = len(lines)
+    for idx in range(summary_start, len(lines)):
+        if MARKDOWN_H2_RE.match(lines[idx]):
+            summary_end = idx
+            break
+
+    summary = "\n".join(lines[summary_start:summary_end]).strip()
+    if not summary:
+        return text, False
+
+    return summary, True
+
+
 def normalize_text_for_tts(text: str) -> str:
     text = text.strip()
     if not text:
@@ -549,7 +582,12 @@ def run_notify_mode(payload_arg: str) -> int:
     except json.JSONDecodeError as exc:
         raise RuntimeError("Invalid JSON payload argument") from exc
 
-    text = normalize_text_for_tts(extract_text(payload))
+    selected_text, used_tts_summary = select_text_for_tts(extract_text(payload))
+    text = normalize_text_for_tts(selected_text)
+    if used_tts_summary:
+        log_line("INFO", "Using TTS Summary section")
+    else:
+        log_line("INFO", "TTS Summary missing or empty; using full message")
     entry = {
         "id": str(uuid.uuid4()),
         "queued_at": utc_now(),

@@ -12,6 +12,28 @@ Test it:
 /Users/ahmedkhattab/.codex/bin/codex-tts-notify '{"message":"Codex TTS notifier is ready"}'
 ```
 
+Recommended final-response format for voice + detail:
+
+```markdown
+## TTS Summary
+codex-notification successful. Short spoken summary goes here.
+
+## Details
+- Full implementation details for reading.
+- Commands, tradeoffs, and technical notes.
+```
+
+Behavior:
+- If `## TTS Summary` exists and has content, only that section is spoken.
+- If `## TTS Summary` is missing or empty, the notifier falls back to the full message after normalization.
+- `## Details` is preserved for full text context and is not spoken when a valid summary exists.
+
+Run tests:
+
+```bash
+python3 -m unittest discover -s tests
+```
+
 Notes:
 - Global Codex hook is set in `~/.codex/config.toml` as `notify=["/Users/ahmedkhattab/.codex/bin/codex-tts-notify"]`.
 - Default model is local `Chatterbox-Turbo` on `mps`.
