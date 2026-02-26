@@ -36,7 +36,10 @@ CHATTERBOX_CFG_WEIGHT = float(os.environ.get("CODEX_CHATTERBOX_CFG_WEIGHT", "0.5
 CHATTERBOX_AUDIO_PROMPT_PATH = os.environ.get(
     "CODEX_CHATTERBOX_AUDIO_PROMPT_PATH", ""
 ).strip()
-MAX_TTS_CHUNK_CHARS = int(os.environ.get("CODEX_TTS_CHUNK_CHARS", "0"))
+DEFAULT_TTS_CHUNK_CHARS = 260
+MAX_TTS_CHUNK_CHARS = int(
+    os.environ.get("CODEX_TTS_CHUNK_CHARS", str(DEFAULT_TTS_CHUNK_CHARS))
+)
 MAX_QUEUE_ITEMS = 200
 MAX_ITEM_AGE_SECONDS = 1800
 AUDIO_TIMEOUT_SECONDS = int(os.environ.get("CODEX_TTS_PLAY_TIMEOUT_SECONDS", "90"))
@@ -184,7 +187,7 @@ def normalize_text_for_tts(text: str) -> str:
 
 def split_text_for_tts(text: str, max_chars: int) -> list[str]:
     if max_chars <= 0:
-        return [text]
+        raise RuntimeError("CODEX_TTS_CHUNK_CHARS must be greater than 0")
     if max_chars < 80:
         raise RuntimeError("CODEX_TTS_CHUNK_CHARS must be at least 80")
     if len(text) <= max_chars:
@@ -446,6 +449,7 @@ def synthesize_and_play_chunk(text: str) -> None:
 
 def play_tts(text: str) -> None:
     chunks = split_text_for_tts(text, MAX_TTS_CHUNK_CHARS)
+    log_line("INFO", f"TTS prepared {len(chunks)} chunk(s)")
     for idx, chunk in enumerate(chunks, start=1):
         if len(chunks) > 1:
             log_line("INFO", f"TTS chunk {idx}/{len(chunks)}")
